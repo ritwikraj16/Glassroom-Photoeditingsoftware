@@ -1,10 +1,13 @@
 //! Glassroom UI — Classic-style Library / Develop chrome (original branding).
 
 use crate::catalog::{default_catalog_path, Catalog, Collection, DevelopParams, Flag, Photo};
-use crate::develop::{self, apply_develop, for_preview, load_image, load_thumb_color_image, to_color_image};
+use crate::develop::{
+    self, apply_develop, for_preview, load_image, load_thumb_color_image, to_color_image,
+    write_thumb_jpeg,
+};
 use eframe::egui;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Module {
     Library,
@@ -36,7 +39,13 @@ pub struct GlassroomApp {
     dirty_develop: bool,
     new_collection_name: String,
     grid_thumb_size: f32,
+    /// Limit JPEG decode work per frame so large catalogs stay interactive.
+    thumbs_loaded_this_frame: u32,
+    thumb_cache_dir: PathBuf,
 }
+
+const THUMBS_PER_FRAME: u32 = 6;
+const THUMB_MAX_EDGE: u32 = 160;
 
 fn apply_dark_theme(ctx: &egui::Context) {
     // Force Classic-like dark chrome every frame (macOS light system theme can otherwise wash out panels).
@@ -119,7 +128,13 @@ impl GlassroomApp {
             dirty_develop: false,
             new_collection_name: String::new(),
             grid_thumb_size: 140.0,
+            thumbs_loaded_this_frame: 0,
+            thumb_cache_dir: path
+                .parent()
+                .unwrap_or_else(|| Path::new("."))
+                .join("thumb-cache"),
         };
+        let _ = std::fs::create_dir_all(&app.thumb_cache_dir);
         app.reload_lists();
         app
     }
@@ -228,17 +243,45 @@ impl GlassroomApp {
         }
     }
 
-    fn ensure_thumb(&mut self, ctx: &egui::Context, photo: &Photo) {
+    fn thumb_cache_file(&self, photo_id: i64) -> PathBuf {
+        self.thumb_cache_dir.join(format!("{photo_id}.jpg"))
+    }
+
+    /// Decode/load at most a few thumbs per frame, and only for visible cells.
+    fn ensure_thumb_in_ui(&mut self, ui: &egui::Ui, ctx: &egui::Context, photo: &Photo, cell: egui::Rect) {
         if self.thumbs.contains_key(&photo.id) {
             return;
         }
-        if let Ok(color) = load_thumb_color_image(&photo.path, 256) {
+        if !ui.is_rect_visible(cell) {
+            return;
+        }
+        if self.thumbs_loaded_this_frame >= THUMBS_PER_FRAME {
+            ctx.request_repaint();
+            return;
+        }
+
+        let cache = self.thumb_cache_file(photo.id);
+        let color = if cache.is_file() {
+            load_thumb_color_image(&cache, THUMB_MAX_EDGE).ok()
+        } else {
+            match load_thumb_color_image(&photo.path, THUMB_MAX_EDGE) {
+                Ok(c) => {
+                    let _ = write_thumb_jpeg(&photo.path, &cache, THUMB_MAX_EDGE);
+                    Some(c)
+                }
+                Err(_) => None,
+            }
+        };
+
+        if let Some(color) = color {
             let tex = ctx.load_texture(
                 format!("thumb-{}", photo.id),
                 color,
                 egui::TextureOptions::LINEAR,
             );
             self.thumbs.insert(photo.id, tex);
+            self.thumbs_loaded_this_frame += 1;
+            ctx.request_repaint();
         }
     }
 
@@ -453,10 +496,10 @@ impl GlassroomApp {
             ui.spacing_mut().item_spacing = egui::vec2(gap, gap);
             ui.horizontal_wrapped(|ui| {
                 for photo in &photos {
-                    self.ensure_thumb(ctx, photo);
                     let selected = self.selected == Some(photo.id);
                     let (cell, resp) =
                         ui.allocate_exact_size(egui::vec2(cell_w, cell_h), egui::Sense::click());
+                    self.ensure_thumb_in_ui(ui, ctx, photo, cell);
 
                     // Selection chrome around the whole cell
                     let chrome = if selected {
@@ -534,10 +577,10 @@ impl GlassroomApp {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
                 for photo in &photos {
-                    self.ensure_thumb(ctx, photo);
                     let selected = self.selected == Some(photo.id);
                     let (rect, resp) =
                         ui.allocate_exact_size(egui::vec2(tile, tile), egui::Sense::click());
+                    self.ensure_thumb_in_ui(ui, ctx, photo, rect);
                     if selected {
                         ui.painter().rect_filled(
                             rect.expand(2.0),
@@ -702,6 +745,7 @@ impl GlassroomApp {
 impl eframe::App for GlassroomApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         apply_dark_theme(ctx);
+        self.thumbs_loaded_this_frame = 0;
         self.handle_keys(ctx);
 
         egui::TopBottomPanel::top("modules")

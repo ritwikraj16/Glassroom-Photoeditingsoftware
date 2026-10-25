@@ -20,10 +20,14 @@ RES="$CONTENTS/Resources"
 ICONSET="$DIST/AppIcon.iconset"
 SRC_ICON="$ROOT/assets/AppIcon.png"
 
-echo "==> Building release binary…"
-cargo build --release
-
 BIN="$ROOT/target/release/glassroom"
+if [[ "${1:-}" == "--reuse-bin" ]] && [[ -x "$BIN" ]]; then
+  echo "==> Reusing existing release binary ($BIN)"
+else
+  echo "==> Building release binary… (first time is slow; later opens of the .app are instant)"
+  cargo build --release
+fi
+
 if [[ ! -x "$BIN" ]]; then
   echo "Missing binary at $BIN" >&2
   exit 1

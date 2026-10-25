@@ -234,7 +234,40 @@ pub fn to_color_image(rgb: &RgbImage) -> egui::ColorImage {
 
 pub fn load_thumb_color_image(path: &Path, max_edge: u32) -> Result<egui::ColorImage> {
     let img = load_image(path)?;
-    let preview = for_preview(&img, max_edge);
+    // Nearest is much cheaper than Triangle for tiny library thumbs.
+    let (w, h) = img.dimensions();
+    let edge = w.max(h).max(1);
+    let preview = if edge <= max_edge {
+        img
+    } else {
+        let scale = max_edge as f32 / edge as f32;
+        let nw = ((w as f32) * scale).round().max(1.0) as u32;
+        let nh = ((h as f32) * scale).round().max(1.0) as u32;
+        img.resize(nw, nh, image::imageops::FilterType::Nearest)
+    };
     let rgb = preview.to_rgb8();
     Ok(to_color_image(&rgb))
+}
+
+/// Encode a small JPEG thumb for on-disk cache (second launch stays fast).
+pub fn write_thumb_jpeg(path: &Path, dest: &Path, max_edge: u32) -> Result<()> {
+    let img = load_image(path)?;
+    let (w, h) = img.dimensions();
+    let edge = w.max(h).max(1);
+    let preview = if edge <= max_edge {
+        img
+    } else {
+        let scale = max_edge as f32 / edge as f32;
+        let nw = ((w as f32) * scale).round().max(1.0) as u32;
+        let nh = ((h as f32) * scale).round().max(1.0) as u32;
+        img.resize(nw, nh, image::imageops::FilterType::Nearest)
+    };
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let rgb = preview.to_rgb8();
+    let mut file = std::fs::File::create(dest)?;
+    let mut enc = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut file, 70);
+    enc.encode_image(&DynamicImage::ImageRgb8(rgb))?;
+    Ok(())
 }

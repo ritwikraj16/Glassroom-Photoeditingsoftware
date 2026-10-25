@@ -36,14 +36,29 @@ Demo JPEGs are in `demo-photos/` if you want a quick test:
 
 Catalog DB defaults to the app data dir (`Glassroom/catalog.db`). Override with `GLASSROOM_CATALOG=/path/to/catalog.db`.
 
+### Compile vs launch (why it feels slow)
+
+| What you run | What is slow |
+|---|---|
+| `cargo run --release` / first `cargo build --release` | **Compile** (minutes the first time). Not the same as app launch. |
+| `open dist/Glassroom.app` or `./target/release/glassroom` | **Launch** only — should be seconds. Large catalogs fill thumbs lazily. |
+
+**Day-to-day:** package once, then open the `.app` — do **not** run Cargo every time.
+
 ### macOS app (Dock / double-click)
 
 On a Mac, after cloning:
 
 ```bash
 chmod +x scripts/package-macos.sh
-./scripts/package-macos.sh
+./scripts/package-macos.sh          # builds once, then wraps Glassroom.app
 open dist/Glassroom.app
+```
+
+If the release binary already exists and you only need to refresh the `.app` wrapper:
+
+```bash
+./scripts/package-macos.sh --reuse-bin
 ```
 
 Optional — install like other apps:
@@ -51,6 +66,8 @@ Optional — install like other apps:
 ```bash
 cp -R dist/Glassroom.app /Applications/
 ```
+
+After that, open from Applications / Dock. Rebuild only after `git pull` when you want new code.
 
 Bundle id: `app.glassroom.desktop` (original; not an Adobe vendor string).  
 Icon: `assets/AppIcon.png` (packaged as `AppIcon.icns`).  
