@@ -13,7 +13,7 @@ This project is **not** affiliated with Adobe. UI strings and branding are origi
 
 ### Library module
 
-Dark Classic-style chrome: catalog sidebar, uniform thumbnail grid, filmstrip, **Import Photos…** / **Import Folder…** / **Export…** (demo catalog).
+Dark Classic-style chrome: catalog sidebar, uniform thumbnail grid, filmstrip, **Import Photos…** / **Import Folder…** / **Export…**. (One thumbnail redacted for privacy.)
 
 ![Glassroom Library module](docs/screenshots/library.png)
 
