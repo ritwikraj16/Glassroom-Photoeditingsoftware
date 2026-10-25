@@ -27,3 +27,13 @@ walkdir = "2"
 [profile.release]
 lto = true
 codegen-units = 1
+
+# Optional: `cargo install cargo-bundle` then `cargo bundle --release`
+[package.metadata.bundle]
+name = "Glassroom"
+identifier = "app.glassroom.desktop"
+icon = ["assets/AppIcon.png"]
+category = "Photography"
+short_description = "Local catalog photo library and JPEG develop"
+long_description = "Glassroom is a free Classic-style local catalog app for importing, culling, developing, and exporting JPEGs."
+osx_info_plist_exts = ["macos/Info.plist"]

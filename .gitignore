@@ -1,4 +1,5 @@
 /target/
+/dist/
 **/*.rs.bk
 .DS_Store
 glassroom-catalog.db
@@ -7,3 +8,4 @@ glassroom-catalog.db-*
 *.db-shm
 .idea/
 .vscode/
+*.app

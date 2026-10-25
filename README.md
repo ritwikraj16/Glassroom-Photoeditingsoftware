@@ -36,6 +36,26 @@ Demo JPEGs are in `demo-photos/` if you want a quick test:
 
 Catalog DB defaults to the app data dir (`Glassroom/catalog.db`). Override with `GLASSROOM_CATALOG=/path/to/catalog.db`.
 
+### macOS app (Dock / double-click)
+
+On a Mac, after cloning:
+
+```bash
+chmod +x scripts/package-macos.sh
+./scripts/package-macos.sh
+open dist/Glassroom.app
+```
+
+Optional — install like other apps:
+
+```bash
+cp -R dist/Glassroom.app /Applications/
+```
+
+Bundle id: `app.glassroom.desktop` (original; not an Adobe vendor string).  
+Icon: `assets/AppIcon.png` (packaged as `AppIcon.icns`).  
+Unsigned local builds may need **right-click → Open** the first time.
+
 ### Linux (dev preview)
 
 ```bash
