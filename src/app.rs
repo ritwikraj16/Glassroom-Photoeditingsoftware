@@ -38,19 +38,35 @@ pub struct GlassroomApp {
     grid_thumb_size: f32,
 }
 
+fn apply_dark_theme(ctx: &egui::Context) {
+    // Force Classic-like dark chrome every frame (macOS light system theme can otherwise wash out panels).
+    let mut visuals = egui::Visuals::dark();
+    visuals.dark_mode = true;
+    visuals.override_text_color = Some(egui::Color32::from_rgb(220, 220, 220));
+    visuals.panel_fill = egui::Color32::from_rgb(32, 32, 32);
+    visuals.window_fill = egui::Color32::from_rgb(38, 38, 38);
+    visuals.extreme_bg_color = egui::Color32::from_rgb(22, 22, 22);
+    visuals.faint_bg_color = egui::Color32::from_rgb(40, 40, 40);
+    visuals.code_bg_color = egui::Color32::from_rgb(28, 28, 28);
+    visuals.widgets.noninteractive.bg_fill = egui::Color32::from_rgb(45, 45, 45);
+    visuals.widgets.inactive.bg_fill = egui::Color32::from_rgb(52, 52, 52);
+    visuals.widgets.hovered.bg_fill = egui::Color32::from_rgb(68, 68, 68);
+    visuals.widgets.active.bg_fill = egui::Color32::from_rgb(78, 78, 78);
+    visuals.widgets.open.bg_fill = egui::Color32::from_rgb(60, 60, 60);
+    visuals.selection.bg_fill = egui::Color32::from_rgb(70, 110, 160);
+    visuals.hyperlink_color = egui::Color32::from_rgb(120, 170, 220);
+    ctx.set_visuals(visuals);
+}
+
+fn dark_panel_frame() -> egui::Frame {
+    egui::Frame::none()
+        .fill(egui::Color32::from_rgb(32, 32, 32))
+        .inner_margin(egui::Margin::same(8.0))
+}
+
 impl GlassroomApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // Dark Classic-like chrome
-        let mut visuals = egui::Visuals::dark();
-        visuals.panel_fill = egui::Color32::from_rgb(36, 36, 36);
-        visuals.window_fill = egui::Color32::from_rgb(42, 42, 42);
-        visuals.extreme_bg_color = egui::Color32::from_rgb(28, 28, 28);
-        visuals.widgets.noninteractive.bg_fill = egui::Color32::from_rgb(48, 48, 48);
-        visuals.widgets.inactive.bg_fill = egui::Color32::from_rgb(55, 55, 55);
-        visuals.widgets.hovered.bg_fill = egui::Color32::from_rgb(70, 70, 70);
-        visuals.widgets.active.bg_fill = egui::Color32::from_rgb(80, 80, 80);
-        visuals.selection.bg_fill = egui::Color32::from_rgb(70, 110, 160);
-        cc.egui_ctx.set_visuals(visuals);
+        apply_dark_theme(&cc.egui_ctx);
 
         let path = default_catalog_path();
         let catalog = Catalog::open(&path).expect("open catalog");
@@ -119,6 +135,37 @@ impl GlassroomApp {
                 Err(e) => self.status = format!("Import failed: {e}"),
             }
         }
+    }
+
+    fn import_files(&mut self) {
+        let files = rfd::FileDialog::new()
+            .add_filter("JPEG images", &["jpg", "jpeg", "JPG", "JPEG"])
+            .pick_files();
+        let Some(files) = files else {
+            return;
+        };
+        if files.is_empty() {
+            return;
+        }
+        let mut ok = 0usize;
+        let mut skipped = 0usize;
+        for path in &files {
+            match self.catalog.import_jpeg(path) {
+                Ok(Some(_)) => ok += 1,
+                Ok(None) => skipped += 1,
+                Err(e) => {
+                    self.status = format!("Import failed on {}: {e}", path.display());
+                    self.reload_lists();
+                    return;
+                }
+            }
+        }
+        self.status = if skipped == 0 {
+            format!("Imported / linked {ok} JPEG(s)")
+        } else {
+            format!("Imported / linked {ok} JPEG(s); skipped {skipped} non-JPEG")
+        };
+        self.reload_lists();
     }
 
     fn export_selected(&mut self) {
@@ -246,6 +293,9 @@ impl GlassroomApp {
                 if ui.button("Import Folder…").clicked() {
                     self.import_folder();
                 }
+                if ui.button("Import Photos…").clicked() {
+                    self.import_files();
+                }
             });
         });
     }
@@ -332,6 +382,32 @@ impl GlassroomApp {
             ui.add(egui::Slider::new(&mut self.grid_thumb_size, 80.0..=220.0).text("Size"));
         });
         ui.separator();
+
+        if self.photos.is_empty() {
+            ui.add_space(48.0);
+            ui.vertical_centered(|ui| {
+                ui.label(
+                    egui::RichText::new("No photos in the catalog yet")
+                        .size(18.0)
+                        .color(egui::Color32::from_rgb(200, 200, 200)),
+                );
+                ui.add_space(8.0);
+                ui.label(
+                    egui::RichText::new("Import individual JPEGs or a whole folder to begin.")
+                        .color(egui::Color32::from_rgb(160, 160, 160)),
+                );
+                ui.add_space(16.0);
+                ui.horizontal(|ui| {
+                    if ui.button("Import Photos…").clicked() {
+                        self.import_files();
+                    }
+                    if ui.button("Import Folder…").clicked() {
+                        self.import_folder();
+                    }
+                });
+            });
+            return;
+        }
 
         let thumb = self.grid_thumb_size;
         let photos = self.photos.clone();
@@ -560,14 +636,18 @@ impl GlassroomApp {
 
 impl eframe::App for GlassroomApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        apply_dark_theme(ctx);
         self.handle_keys(ctx);
 
-        egui::TopBottomPanel::top("modules").show(ctx, |ui| {
-            self.top_chrome(ui);
-        });
+        egui::TopBottomPanel::top("modules")
+            .frame(dark_panel_frame())
+            .show(ctx, |ui| {
+                self.top_chrome(ui);
+            });
 
         egui::TopBottomPanel::bottom("status")
             .exact_height(22.0)
+            .frame(dark_panel_frame().inner_margin(egui::Margin::symmetric(8.0, 2.0)))
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(egui::RichText::new(&self.status).small());
@@ -583,6 +663,7 @@ impl eframe::App for GlassroomApp {
 
         egui::TopBottomPanel::bottom("filmstrip")
             .exact_height(96.0)
+            .frame(dark_panel_frame())
             .show(ctx, |ui| {
                 self.filmstrip(ui, ctx);
             });
@@ -590,28 +671,38 @@ impl eframe::App for GlassroomApp {
         egui::SidePanel::left("sidebar")
             .default_width(200.0)
             .resizable(true)
+            .frame(dark_panel_frame())
             .show(ctx, |ui| {
                 self.sidebar_panel(ui);
             });
 
         match self.module {
             Module::Library => {
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    self.library_grid(ui, ctx);
-                });
+                egui::CentralPanel::default()
+                    .frame(dark_panel_frame())
+                    .show(ctx, |ui| {
+                        self.library_grid(ui, ctx);
+                    });
             }
             Module::Develop => {
                 egui::SidePanel::right("develop")
                     .default_width(260.0)
                     .resizable(true)
+                    .frame(dark_panel_frame())
                     .show(ctx, |ui| {
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             self.develop_panel(ui);
                         });
                     });
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    self.loupe_or_preview(ui, ctx);
-                });
+                egui::CentralPanel::default()
+                    .frame(
+                        egui::Frame::none()
+                            .fill(egui::Color32::from_rgb(22, 22, 22))
+                            .inner_margin(egui::Margin::same(8.0)),
+                    )
+                    .show(ctx, |ui| {
+                        self.loupe_or_preview(ui, ctx);
+                    });
             }
         }
     }
