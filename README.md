@@ -17,10 +17,10 @@ MVP ships as **source** you build once with Rust (no notarized `.dmg` yet).
    ```bash
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    ```
-2. Clone this repo (after it’s on GitHub):
+2. Clone this repo:
    ```bash
-   git clone https://github.com/<you>/<repo>.git
-   cd <repo>
+   git clone https://github.com/ritwikraj16/Glassroom-Photoeditingsoftware.git
+   cd Glassroom-Photoeditingsoftware
    ```
 3. Build and run:
    ```bash
