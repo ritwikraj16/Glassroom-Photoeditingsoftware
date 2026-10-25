@@ -1,0 +1,9 @@
+/target/
+**/*.rs.bk
+.DS_Store
+glassroom-catalog.db
+glassroom-catalog.db-*
+*.db-wal
+*.db-shm
+.idea/
+.vscode/
