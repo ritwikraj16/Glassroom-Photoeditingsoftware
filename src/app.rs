@@ -64,6 +64,39 @@ fn dark_panel_frame() -> egui::Frame {
         .inner_margin(egui::Margin::same(8.0))
 }
 
+/// Paint a texture into a fixed tile (Lightroom-style): cell is always `tile`, image is
+/// aspect-fit / centered with dark letterboxing so every cell is the same size.
+fn paint_uniform_thumb(
+    ui: &mut egui::Ui,
+    tex: &egui::TextureHandle,
+    tile: egui::Rect,
+    selected: bool,
+) {
+    let bg = if selected {
+        egui::Color32::from_rgb(55, 70, 90)
+    } else {
+        egui::Color32::from_rgb(28, 28, 28)
+    };
+    ui.painter()
+        .rect_filled(tile, egui::Rounding::same(2.0), bg);
+
+    let size = tex.size_vec2();
+    if size.x <= 0.0 || size.y <= 0.0 {
+        return;
+    }
+    let pad = 2.0;
+    let inner = tile.shrink(pad);
+    let scale = (inner.width() / size.x).min(inner.height() / size.y);
+    let fitted = egui::vec2(size.x * scale, size.y * scale);
+    let img_rect = egui::Rect::from_center_size(inner.center(), fitted);
+    ui.painter().image(
+        tex.id(),
+        img_rect,
+        egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+        egui::Color32::WHITE,
+    );
+}
+
 impl GlassroomApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         apply_dark_theme(&cc.egui_ctx);
@@ -409,55 +442,81 @@ impl GlassroomApp {
             return;
         }
 
-        let thumb = self.grid_thumb_size;
+        // Fixed cell size (Classic-style grid): same rectangle for every photo.
+        let cell_w = self.grid_thumb_size;
+        let image_h = self.grid_thumb_size * 0.75; // uniform 4:3 tile for the image area
+        let meta_h = 36.0;
+        let cell_h = image_h + meta_h;
+        let gap = 6.0;
         let photos = self.photos.clone();
         egui::ScrollArea::vertical().id_salt("grid").show(ui, |ui| {
+            ui.spacing_mut().item_spacing = egui::vec2(gap, gap);
             ui.horizontal_wrapped(|ui| {
                 for photo in &photos {
                     self.ensure_thumb(ctx, photo);
                     let selected = self.selected == Some(photo.id);
-                    let frame = egui::Frame::none()
-                        .fill(if selected {
-                            egui::Color32::from_rgb(70, 110, 160)
-                        } else {
-                            egui::Color32::from_rgb(45, 45, 45)
-                        })
-                        .inner_margin(4.0)
-                        .rounding(2.0);
+                    let (cell, resp) =
+                        ui.allocate_exact_size(egui::vec2(cell_w, cell_h), egui::Sense::click());
 
-                    let response = frame.show(ui, |ui| {
-                        ui.set_width(thumb);
-                        if let Some(tex) = self.thumbs.get(&photo.id) {
-                            let size = egui::vec2(thumb - 8.0, thumb - 8.0);
-                            ui.add(egui::Image::from_texture(tex).fit_to_exact_size(size));
-                        } else {
-                            ui.allocate_exact_size(
-                                egui::vec2(thumb - 8.0, thumb - 8.0),
-                                egui::Sense::hover(),
-                            );
-                            ui.label("…");
-                        }
-                        let flag = match photo.flag {
-                            Flag::Pick => "▲ ",
-                            Flag::Reject => "▼ ",
-                            Flag::None => "",
-                        };
-                        let stars = "★".repeat(photo.rating as usize)
-                            + &"☆".repeat((5 - photo.rating).max(0) as usize);
-                        ui.label(
-                            egui::RichText::new(format!("{flag}{stars}"))
-                                .small()
-                                .color(egui::Color32::from_rgb(200, 180, 80)),
+                    // Selection chrome around the whole cell
+                    let chrome = if selected {
+                        egui::Color32::from_rgb(70, 110, 160)
+                    } else {
+                        egui::Color32::from_rgb(42, 42, 42)
+                    };
+                    ui.painter()
+                        .rect_filled(cell, egui::Rounding::same(3.0), chrome);
+
+                    let image_rect = egui::Rect::from_min_size(
+                        cell.min + egui::vec2(3.0, 3.0),
+                        egui::vec2(cell_w - 6.0, image_h - 3.0),
+                    );
+                    if let Some(tex) = self.thumbs.get(&photo.id) {
+                        paint_uniform_thumb(ui, tex, image_rect, selected);
+                    } else {
+                        ui.painter().rect_filled(
+                            image_rect,
+                            egui::Rounding::same(2.0),
+                            egui::Color32::from_rgb(28, 28, 28),
                         );
-                        ui.label(egui::RichText::new(&photo.filename).small());
-                    });
-                    if response.response.clicked() {
+                    }
+
+                    let flag = match photo.flag {
+                        Flag::Pick => "▲ ",
+                        Flag::Reject => "▼ ",
+                        Flag::None => "",
+                    };
+                    let stars = "★".repeat(photo.rating as usize)
+                        + &"☆".repeat((5 - photo.rating).max(0) as usize);
+                    let meta_top = cell.min.y + image_h + 2.0;
+                    ui.painter().text(
+                        egui::pos2(cell.min.x + 6.0, meta_top),
+                        egui::Align2::LEFT_TOP,
+                        format!("{flag}{stars}"),
+                        egui::FontId::proportional(11.0),
+                        egui::Color32::from_rgb(200, 180, 80),
+                    );
+                    // Truncate filename to cell width
+                    let name = if photo.filename.len() > 18 {
+                        format!("{}…", &photo.filename[..16])
+                    } else {
+                        photo.filename.clone()
+                    };
+                    ui.painter().text(
+                        egui::pos2(cell.min.x + 6.0, meta_top + 14.0),
+                        egui::Align2::LEFT_TOP,
+                        name,
+                        egui::FontId::proportional(11.0),
+                        egui::Color32::from_rgb(190, 190, 190),
+                    );
+
+                    if resp.clicked() {
                         self.selected = Some(photo.id);
                         self.preview_params = photo.develop.clone();
                         self.preview_for_id = None;
                         self.dirty_develop = true;
                     }
-                    if response.response.double_clicked() {
+                    if resp.double_clicked() {
                         self.selected = Some(photo.id);
                         self.preview_params = photo.develop.clone();
                         self.module = Module::Develop;
@@ -470,24 +529,30 @@ impl GlassroomApp {
 
     fn filmstrip(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         let photos = self.photos.clone();
+        let tile = 72.0;
         egui::ScrollArea::horizontal().id_salt("filmstrip").show(ui, |ui| {
             ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
                 for photo in &photos {
                     self.ensure_thumb(ctx, photo);
                     let selected = self.selected == Some(photo.id);
-                    let size = egui::vec2(72.0, 72.0);
-                    let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::click());
+                    let (rect, resp) =
+                        ui.allocate_exact_size(egui::vec2(tile, tile), egui::Sense::click());
                     if selected {
                         ui.painter().rect_filled(
                             rect.expand(2.0),
-                            2.0,
+                            egui::Rounding::same(2.0),
                             egui::Color32::from_rgb(70, 110, 160),
                         );
                     }
                     if let Some(tex) = self.thumbs.get(&photo.id) {
-                        egui::Image::from_texture(tex)
-                            .fit_to_exact_size(size - egui::vec2(4.0, 4.0))
-                            .paint_at(ui, rect.shrink(2.0));
+                        paint_uniform_thumb(ui, tex, rect.shrink(1.0), selected);
+                    } else {
+                        ui.painter().rect_filled(
+                            rect,
+                            egui::Rounding::same(2.0),
+                            egui::Color32::from_rgb(28, 28, 28),
+                        );
                     }
                     if resp.clicked() {
                         self.selected = Some(photo.id);
