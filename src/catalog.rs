@@ -305,6 +305,14 @@ impl Catalog {
             .optional()
             .map_err(Into::into)
     }
+
+    /// Remove from catalog (+ collection links). Does **not** delete the JPEG on disk.
+    pub fn remove_photo(&self, photo_id: i64) -> Result<bool> {
+        let n = self
+            .conn
+            .execute("DELETE FROM photos WHERE id = ?1", params![photo_id])?;
+        Ok(n > 0)
+    }
 }
 
 pub fn default_catalog_path() -> PathBuf {

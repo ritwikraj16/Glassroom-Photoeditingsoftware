@@ -341,6 +341,62 @@ impl GlassroomApp {
         }
     }
 
+    /// Remove one photo from the catalog only (original JPEG stays on disk).
+    fn remove_photo_by_id(&mut self, id: i64) {
+        let name = self
+            .photos
+            .iter()
+            .find(|p| p.id == id)
+            .map(|p| p.filename.clone())
+            .unwrap_or_else(|| format!("#{id}"));
+        match self.catalog.remove_photo(id) {
+            Ok(true) => {
+                self.thumbs.remove(&id);
+                let _ = std::fs::remove_file(self.thumb_cache_file(id));
+                if self.preview_for_id == Some(id) {
+                    self.preview_tex = None;
+                    self.preview_for_id = None;
+                }
+                if self.selected == Some(id) {
+                    self.selected = None;
+                }
+                self.reload_lists();
+                self.status = format!("Removed {name} from catalog (file kept on disk)");
+            }
+            Ok(false) => self.status = "Photo was not in the catalog".into(),
+            Err(e) => self.status = format!("Remove failed: {e}"),
+        }
+    }
+
+    /// Draw a small ✕ control; returns true if clicked (caller should skip cell select).
+    fn paint_remove_x(ui: &mut egui::Ui, photo_id: i64, image_rect: egui::Rect) -> bool {
+        let size = egui::vec2(18.0, 18.0);
+        let x_rect = egui::Rect::from_min_size(
+            egui::pos2(image_rect.max.x - size.x - 3.0, image_rect.min.y + 3.0),
+            size,
+        );
+        let resp = ui.interact(
+            x_rect,
+            ui.id().with(("remove-x", photo_id)),
+            egui::Sense::click(),
+        );
+        let bg = if resp.hovered() {
+            egui::Color32::from_rgb(180, 50, 50)
+        } else {
+            egui::Color32::from_rgba_unmultiplied(20, 20, 20, 200)
+        };
+        ui.painter()
+            .circle_filled(x_rect.center(), 8.0, bg);
+        ui.painter().text(
+            x_rect.center(),
+            egui::Align2::CENTER_CENTER,
+            "✕",
+            egui::FontId::proportional(12.0),
+            egui::Color32::WHITE,
+        );
+        resp.clicked()
+    }
+
     fn top_chrome(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 4.0;
@@ -524,6 +580,8 @@ impl GlassroomApp {
                         );
                     }
 
+                    let remove_clicked = Self::paint_remove_x(ui, photo.id, image_rect);
+
                     let flag = match photo.flag {
                         Flag::Pick => "▲ ",
                         Flag::Reject => "▼ ",
@@ -553,13 +611,17 @@ impl GlassroomApp {
                         egui::Color32::from_rgb(190, 190, 190),
                     );
 
-                    if resp.clicked() {
+                    if remove_clicked {
+                        self.remove_photo_by_id(photo.id);
+                        // photos list stale; break and let next frame redraw
+                        break;
+                    } else if resp.clicked() {
                         self.selected = Some(photo.id);
                         self.preview_params = photo.develop.clone();
                         self.preview_for_id = None;
                         self.dirty_develop = true;
                     }
-                    if resp.double_clicked() {
+                    if !remove_clicked && resp.double_clicked() {
                         self.selected = Some(photo.id);
                         self.preview_params = photo.develop.clone();
                         self.module = Module::Develop;
@@ -588,8 +650,9 @@ impl GlassroomApp {
                             egui::Color32::from_rgb(70, 110, 160),
                         );
                     }
+                    let img = rect.shrink(1.0);
                     if let Some(tex) = self.thumbs.get(&photo.id) {
-                        paint_uniform_thumb(ui, tex, rect.shrink(1.0), selected);
+                        paint_uniform_thumb(ui, tex, img, selected);
                     } else {
                         ui.painter().rect_filled(
                             rect,
@@ -597,7 +660,11 @@ impl GlassroomApp {
                             egui::Color32::from_rgb(28, 28, 28),
                         );
                     }
-                    if resp.clicked() {
+                    let remove_clicked = Self::paint_remove_x(ui, photo.id, img);
+                    if remove_clicked {
+                        self.remove_photo_by_id(photo.id);
+                        break;
+                    } else if resp.clicked() {
                         self.selected = Some(photo.id);
                         self.preview_params = photo.develop.clone();
                         self.preview_for_id = None;
@@ -706,6 +773,11 @@ impl GlassroomApp {
             }
             if i.key_pressed(egui::Key::U) {
                 self.set_flag(Flag::None);
+            }
+            if i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace) {
+                if let Some(id) = self.selected {
+                    self.remove_photo_by_id(id);
+                }
             }
             if i.key_pressed(egui::Key::ArrowLeft) {
                 self.nudge_selection(-1);

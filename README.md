@@ -106,8 +106,9 @@ cargo run --release
 
 1. **Import Photos…** — pick one or more `.jpg` / `.jpeg` files, or **Import Folder…** for a whole directory.
 2. Rate with `1`–`5`, clear with `0`; flag pick `P`, reject `X`, unflag `U`.
-3. Switch to **Develop**, adjust sliders; preview updates; originals stay untouched.
-4. **Export…** writes a baked JPEG (originals never overwritten).
+3. Click **✕** on a thumbnail to remove that photo from the catalog (JPEG file stays on disk).
+4. Switch to **Develop**, adjust sliders; preview updates; originals stay untouched.
+5. **Export…** writes a baked JPEG (originals never overwritten).
 
 ## License
 
