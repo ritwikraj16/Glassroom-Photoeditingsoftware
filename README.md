@@ -9,6 +9,20 @@
 
 This project is **not** affiliated with Adobe. UI strings and branding are original (no Adobe / Lightroom trademarks).
 
+## Screenshots
+
+### Library module
+
+Dark Classic-style chrome: catalog sidebar, uniform thumbnail grid, filmstrip, **Import Photos…** / **Import Folder…** / **Export…**.
+
+![Glassroom Library module](docs/screenshots/library.png)
+
+### Develop module
+
+Non-destructive JPEG develop with loupe preview and Basic / White Balance / Presence controls.
+
+![Glassroom Develop module](docs/screenshots/develop.png)
+
 ## Try it on your Mac (recommended)
 
 MVP ships as **source** you build once with Rust (no notarized `.dmg` yet).
@@ -26,9 +40,9 @@ MVP ships as **source** you build once with Rust (no notarized `.dmg` yet).
    ```bash
    cargo run --release
    ```
-4. Click **Import Folder…** and pick JPEGs from **your** desktop/drive.
+4. Click **Import Photos…** or **Import Folder…** and pick JPEGs from **your** desktop/drive.
 
-Small demo JPEGs live in `demo-photos/` (generated gradients plus one real aerial sample, `06-coast-aerial.jpg`) for a quick test — not a full personal library:
+Small demo JPEGs live in `demo-photos/` (generated gradients plus one aerial sample, [`06-coast-aerial.jpg`](demo-photos/06-coast-aerial.jpg)) for a quick test — not a full personal library:
 ```bash
 ./target/release/glassroom --import ./demo-photos
 ./target/release/glassroom
@@ -82,8 +96,8 @@ cargo run --release
 ## Features (MVP)
 
 - Local SQLite catalog (path, star rating, pick/reject flag, collections)
-- Import a folder of JPEGs
-- Library: sidebar (folders / collections) + thumbnail grid + filmstrip
+- Import individual JPEGs or a whole folder
+- Library: sidebar (folders / collections) + uniform thumbnail grid + filmstrip
 - Develop: exposure, contrast, highlights/shadows, white-balance temp/tint, saturation, clarity
 - Non-destructive edit params stored in the catalog; export writes a new JPEG
 - Dark module chrome with Library / Develop switcher
