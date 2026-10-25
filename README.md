@@ -28,7 +28,7 @@ MVP ships as **source** you build once with Rust (no notarized `.dmg` yet).
    ```
 4. Click **Import Folder…** and pick JPEGs from **your** desktop/drive.
 
-Demo JPEGs are in `demo-photos/` if you want a quick test:
+Small demo JPEGs live in `demo-photos/` (generated gradients plus one real aerial sample, `06-coast-aerial.jpg`) for a quick test — not a full personal library:
 ```bash
 ./target/release/glassroom --import ./demo-photos
 ./target/release/glassroom
